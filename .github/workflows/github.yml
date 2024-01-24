@@ -21,16 +21,37 @@ jobs:
         run: |
           git -v
 
-      - name: create PR
+      - name: prepare PR
+        id: prepare
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | gh auth login --with-token
           git fetch --deepen 1 origin master:refs/remotes/origin/master
-          pr_body=$(git log --no-merges --oneline --pretty=format:"%h %s" origin/master..origin/release)
 
-          pr=$(gh pr list --base master | grep "release to master")
-          result=$?
-          if [ $result = 0 ]; then
-            echo "$pr_body" | gh pr edit $(echo "$pr" | awk '{print $1}') --body-file -
+          pr=$(gh pr list --base master | grep "release to master" | cat)
+          echo "pr=$pr" >> $GITHUB_OUTPUT
+
+          pr_body=$(git log --no-merges --oneline --pretty=format:"%h %s" origin/master..origin/release)
+          {
+            echo 'pr_body<<EOF'
+            echo "$pr_body"
+            echo EOF
+          } >> $GITHUB_OUTPUT
+
+      - name: PR check
+        id: pr_check
+        run: |
+          if [ "${{steps.prepare.outputs.pr}}" == "" ]; then
+            echo "::set-output name=exists::false"
           else
-            echo "$pr_body" | gh pr create --title "release to master" --base master --head release --body-file -
+            echo "::set-output name=exists::true"
           fi
+
+      - name: update PR
+        if: steps.pr_check.outputs.exists == 'true'
+        run: |
+          echo "${{steps.prepare.outputs.pr_body}}" | gh pr edit $(echo "${{steps.prepare.outputs.pr}}" | awk '{print $1}') --body-file -
+
+      - name: create PR
+        if: steps.pr_check.outputs.exists == 'false'
+        run: |
+          echo "${{steps.prepare.outputs.pr_body}}" | gh pr create --title "release to master" --base master --head release --body-file -
