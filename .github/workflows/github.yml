@@ -41,9 +41,9 @@ jobs:
         id: pr_check
         run: |
           if [ "${{steps.prepare.outputs.pr}}" == "" ]; then
-            echo "::set-output name=exists::false"
+            echo "exists=false" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=exists::true"
+            echo "exists=true" >> $GITHUB_OUTPUT
           fi
 
       - name: update PR
